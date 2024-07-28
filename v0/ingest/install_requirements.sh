@@ -13,5 +13,4 @@ pip3 install google-cloud-storage || { echo "Failed to install google-cloud-stor
 pip3 install pyspark || { echo "Failed to install pyspark"; exit 1; }
 pip3 install google-auth || { echo "Failed to install google-auth"; exit 1; }
 pip3 install google-cloud-secret-manager || { echo "Failed to install google-cloud-secret-manager"; exit 1; }
-pip3 install python-mlb-statsapi || { echo "Failed to install python-mlb-statsapi"; exit 1; }
 pip3 install jupyter || { echo "Failed to install jupyter"; exit 1; }

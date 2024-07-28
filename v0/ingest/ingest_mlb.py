@@ -1,12 +1,10 @@
 import pandas as pd
 import argparse
-import pyspark
+# import pyspark
 
-from pyspark.sql.types import *
-
-
+# from pyspark.sql.types import *
 import mlbstatsapi
-import pandas as pd
+# import pandas as pd
 
 
 def append_game_stats(game_cols, stats):
@@ -361,10 +359,10 @@ if __name__ == "__main__":
     # parser.add_argument("--write_mode", type=str, help="overwrite or append, as used in spark.write.*")
     args = parser.parse_args()
 
-    spark = pyspark.sql.SparkSession.builder \
-        .appName("Ingest MLB Game info for a provided date range") \
-        .getOrCreate()
-    spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "false")
+    # spark = pyspark.sql.SparkSession.builder \
+    #     .appName("Ingest MLB Game info for a provided date range") \
+    #     .getOrCreate()
+    # spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "false")
 
     bucket_name = args.output_bucket
     output_destination = args.output_destination
@@ -373,13 +371,13 @@ if __name__ == "__main__":
 
     mlb = MLBIngestHistory(begin_date = args.begin_date, end_date = args.end_date)
 
-    mlb.df_batting_player.to_csv(f"gs://{bucket_name}/{output_destination}/mlb_individual_batting_history_{mlb.begin_date.replace('-','')}_{mlb.end_date.replace('-','')}.csv")
-    mlb.df_batting_team.to_csv(f"gs://{bucket_name}/{output_destination}/mlb_team_batting_history_{mlb.begin_date.replace('-','')}_{mlb.end_date.replace('-','')}.csv")
-    mlb.df_pitching_player.to_csv(f"gs://{bucket_name}/{output_destination}/mlb_individual_pitching_history_{mlb.begin_date.replace('-','')}_{mlb.end_date.replace('-','')}.csv")
-    mlb.df_pitching_team.to_csv(f"gs://{bucket_name}/{output_destination}/mlb_team_pitching_history_{mlb.begin_date.replace('-','')}_{mlb.end_date.replace('-','')}.csv")
-    mlb.df_game_data.to_csv(f"gs://{bucket_name}/{output_destination}/mlb_games_history_{mlb.begin_date.replace('-','')}_{mlb.end_date.replace('-','')}.csv")
+    mlb.df_batting_player.to_csv(f"gs://{bucket_name}/{output_destination}/individual_batting/mlb_individual_batting_history_{mlb.begin_date.replace('-','')}_{mlb.end_date.replace('-','')}.csv")
+    mlb.df_batting_team.to_csv(f"gs://{bucket_name}/{output_destination}/team_batting/mlb_team_batting_history_{mlb.begin_date.replace('-','')}_{mlb.end_date.replace('-','')}.csv")
+    mlb.df_pitching_player.to_csv(f"gs://{bucket_name}/{output_destination}/individual_pitching/mlb_individual_pitching_history_{mlb.begin_date.replace('-','')}_{mlb.end_date.replace('-','')}.csv")
+    mlb.df_pitching_team.to_csv(f"gs://{bucket_name}/{output_destination}/team_pitching/mlb_team_pitching_history_{mlb.begin_date.replace('-','')}_{mlb.end_date.replace('-','')}.csv")
+    mlb.df_game_data.to_csv(f"gs://{bucket_name}/{output_destination}/games_history/mlb_games_history_{mlb.begin_date.replace('-','')}_{mlb.end_date.replace('-','')}.csv")
 
-    mlbs = MLBIngestScheduled(date = '2024-07-23')
-    mlbs.df_game_data.to_csv(f"gs://{bucket_name}/{output_destination}/mlb_games_scheduled_{mlbs.date.replace('-','')}.csv")
+    mlbs = MLBIngestScheduled(date = args.scheduled_date)
+    mlbs.df_game_data.to_csv(f"gs://{bucket_name}/{output_destination}/scheduled/mlb_games_scheduled_{mlbs.date.replace('-','')}.csv")
 
-    spark.stop()
+    # spark.stop()
