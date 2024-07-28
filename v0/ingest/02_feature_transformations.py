@@ -212,6 +212,6 @@ if __name__ == "__main__":
 
     union_pd = union_df.toPandas()
     union_pd = union_pd[[x for x in union_pd.columns if 'Unnamed' not in x]]
-    union_pd.to_csv("gs://{args.output_bucket}/{args.output_destination}.csv")
+    union_pd.to_csv(f"gs://{args.output_bucket}/{args.output_destination}/{args.begin_date}-{args.end_date}.csv")
 
     spark.stop()
