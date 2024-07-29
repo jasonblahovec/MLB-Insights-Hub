@@ -163,6 +163,7 @@ if __name__ == "__main__":
             "last_game": "2024-09-29"
         }
     }
+    # march 20 to sep 29 2019
 
     # # Define the start and end dates
     # start_date = '2024-04-08'
@@ -171,6 +172,7 @@ if __name__ == "__main__":
 
     # Create a date range
     date_range = pd.date_range(start=args.begin_date, end=args.end_date)
+    formatted_dates = [x.strftime('%Y-%m-%d') for x in date_range]
 
     df_individual_pitching = spark.read.format('csv').load('gs://mlb_api_extracts/mlb_api_output/individual_pitching.csv', header = True, inferSchema = True)
     df_mlb_games = spark.read.format('csv').load('gs://mlb_api_extracts/mlb_api_output/games_history.csv', header = True, inferSchema = True)
@@ -178,12 +180,14 @@ if __name__ == "__main__":
     df_team_pitching = spark.read.format('csv').load('gs://mlb_api_extracts/mlb_api_output/team_pitching.csv', header = True, inferSchema = True)
     df_individual_batting = spark.read.format('csv').load('gs://mlb_api_extracts/mlb_api_output/individual_batting.csv', header = True, inferSchema = True)
 
+    print(df_mlb_games.count(), df_team_batting.count(), df_individual_pitching.count())
+
     output = {}
     # Loop over the dates
-    for date in date_range:
+    for date in formatted_dates:
         print(date)
         df_todays_games = df_mlb_games.where(f.expr(f"season = {season}")).where(f.expr(f"officialdate = '{date}' and DetailedState  ='Final'"))
-        
+
         df_current_batting = get_current_batting_ranks(df_team_batting.where(f.expr(f"season = {season}")),game_date = date)
         df_current_pitching = get_pitcher_performance(df_individual_pitching.where(f.expr(f"season = {season}")).where(f.expr("detailedstate = 'Final'")), game_date=date)
 
@@ -200,6 +204,7 @@ if __name__ == "__main__":
             .join(df_current_pitching_home, df_todays_games.HomeProbPitcherFullName == df_current_pitching_home.home_sp_player_name, "left")\
             .join(df_current_pitching_away, df_todays_games.AwayProbPitcherFullName == df_current_pitching_away.away_sp_player_name, "left")
 
+        print(df_model_input_daily.count())
         output[date] = df_model_input_daily
 
     union_df = None
@@ -210,8 +215,10 @@ if __name__ == "__main__":
         else:
             union_df = union_df.union(df)
 
-    union_pd = union_df.toPandas()
-    union_pd = union_pd[[x for x in union_pd.columns if 'Unnamed' not in x]]
-    union_pd.to_csv(f"gs://{args.output_bucket}/{args.output_destination}/{args.begin_date}-{args.end_date}.csv")
+    union_df.write.format("parquet").save(f"gs://{args.output_bucket}/{args.output_destination}", mode = args.write_mode)
+
+    # union_pd = union_df.toPandas()
+    # union_pd = union_pd[[x for x in union_pd.columns if 'Unnamed' not in x]]
+    # union_pd.to_csv(f"gs://{args.output_bucket}/{args.output_destination}/{args.begin_date}-{args.end_date}.csv")
 
     spark.stop()
