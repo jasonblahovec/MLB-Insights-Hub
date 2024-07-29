@@ -215,7 +215,8 @@ if __name__ == "__main__":
         else:
             union_df = union_df.union(df)
 
-    union_df.write.format("parquet").save(f"gs://{args.output_bucket}/{args.output_destination}", mode = args.write_mode)
+    output_df = union_df[union_df.columns[2:]]
+    output_df.write.format("parquet").save(f"gs://{args.output_bucket}/{args.output_destination}", mode = args.write_mode)
 
     # union_pd = union_df.toPandas()
     # union_pd = union_pd[[x for x in union_pd.columns if 'Unnamed' not in x]]
