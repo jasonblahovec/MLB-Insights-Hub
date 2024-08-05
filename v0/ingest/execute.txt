@@ -14,7 +14,7 @@ bq load --location="us-east4" --source_format=PARQUET mlb_features.team_batting_
 
 gcloud dataproc jobs submit pyspark --cluster=delta-cluster --region=us-east4 -- gs://dataproc-init-01/04_prepare_model_training_inputs.py -- --input_bucket mlb_feature_store --historical_path batting_vs_starting_pitching --scheduled_path team_batting_vs_starting_pitching_scheduled --output_bucket mlb_feature_store --output_destination xgboost_model_input --write_mode overwrite     
 
-gcloud dataproc jobs submit pyspark --cluster=delta-cluster --region=us-east4 -- gs://dataproc-init-01/05_train_xgb_with_optuna.py -- --input_bucket mlb_feature_store --input_path xgboost_model_input/model_home_away --output_bucket mlb_xgb_output --output_destination xgboost_model_training_output --model_tag test_model_0805 --write_mode overwrite 
+gcloud dataproc jobs submit pyspark --cluster=delta-cluster --region=us-east4 -- gs://dataproc-init-01/05_train_xgb_with_optuna.py -- --input_bucket mlb_feature_store --input_path xgboost_model_input/model_home_away_train --output_bucket mlb_xgb_output --output_destination xgboost_model_training_output --model_tag test_model_0805 --write_mode overwrite 
 
 
 bq mk --dataset --location=us-east4 mlb-insights-hub:mlb_model_output  

@@ -426,15 +426,18 @@ if __name__ == "__main__":
 
     reporting_table = df_team_batting_vs_starting_pitching[get_baseball_data_fields()].na.drop()
 
-    away_data, home_data = get_home_vs_away_models_v0(reporting_table)
+    # away_data, home_data = get_home_vs_away_models_v0(reporting_table)
     combined_model_data = get_combined_model_data(reporting_table)
+    combined_model_data_scheduled = get_combined_model_data(df_scheduled)
 
     spark.createDataFrame(combined_model_data).write.format("parquet") \
-        .save(f"gs://{args.output_bucket}/{args.output_destination}/model_home_away", mode = args.write_mode)
-    spark.createDataFrame(home_data).write.format("parquet") \
-        .save(f"gs://{args.output_bucket}/{args.output_destination}/model_home", mode = args.write_mode)
-    spark.createDataFrame(away_data).write.format("parquet") \
-        .save(f"gs://{args.output_bucket}/{args.output_destination}/model_away", mode = args.write_mode)
+        .save(f"gs://{args.output_bucket}/{args.output_destination}/model_home_away_train", mode = args.write_mode)
+    spark.createDataFrame(combined_model_data).write.format("parquet") \
+        .save(f"gs://{args.output_bucket}/{args.output_destination}/model_home_away_predict", mode = args.write_mode)
+    # spark.createDataFrame(home_data).write.format("parquet") \
+    #     .save(f"gs://{args.output_bucket}/{args.output_destination}/model_home", mode = args.write_mode)
+    # spark.createDataFrame(away_data).write.format("parquet") \
+    #     .save(f"gs://{args.output_bucket}/{args.output_destination}/model_away", mode = args.write_mode)
 
 
     spark.stop()
