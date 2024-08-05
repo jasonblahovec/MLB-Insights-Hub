@@ -432,7 +432,7 @@ if __name__ == "__main__":
 
     spark.createDataFrame(combined_model_data).write.format("parquet") \
         .save(f"gs://{args.output_bucket}/{args.output_destination}/model_home_away_train", mode = args.write_mode)
-    spark.createDataFrame(combined_model_data).write.format("parquet") \
+    spark.createDataFrame(combined_model_data_scheduled).write.format("parquet") \
         .save(f"gs://{args.output_bucket}/{args.output_destination}/model_home_away_predict", mode = args.write_mode)
     # spark.createDataFrame(home_data).write.format("parquet") \
     #     .save(f"gs://{args.output_bucket}/{args.output_destination}/model_home", mode = args.write_mode)
