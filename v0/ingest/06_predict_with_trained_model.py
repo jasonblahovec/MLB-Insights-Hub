@@ -59,6 +59,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Prepare MLB Xgboost inputs")
     parser.add_argument("--input_bucket", type=str, help="a GCS Bucket")
     parser.add_argument("--input_path", type=str, help="04_prepare.. output path")
+    parser.add_argument("--model_bucket", type=str, help="a GCS Bucket")
     parser.add_argument("--model_path", type=str, help="04_prepare.. output path")
     parser.add_argument("--output_bucket", type=str, help="a GCS Bucket")
     parser.add_argument("--output_destination", type=str, help="a location within GCS bucket where output is stored")
@@ -73,11 +74,11 @@ if __name__ == "__main__":
 
     input_df = spark.read.format("parquet").load(f'gs://{args.input_bucket}/{args.input_path}')
     dm =  model_dataframe_to_dmatrix(input_df.toPandas())
-    model = fetch_pickled_model(bucket_name = args.input_bucket, source_path = args.model_path)
+    model = fetch_pickled_model(bucket_name = args.model_bucket, source_path = args.model_path)
 
     preds = model.predict(dm)
 
-    output_df = input_df.copy()
+    output_df = input_df.toPandas()
 
     output_df['model_prediction'] = preds
 
