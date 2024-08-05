@@ -1,0 +1,23 @@
+gcloud dataproc clusters create delta-cluster --initialization-actions gs://dataproc-init-01/install_requirements.sh --region=us-east4 --zone=us-east4-a --num-workers 2 --worker-boot-disk-size 30GB --master-boot-disk-size 30GB --scopes https://www.googleapis.com/auth/cloud-platform --properties "spark:spark.driver.memory=2g,spark:spark.executor.memory=2g"
+
+bq rm -r -d mlb-insights-hub:mlb_features    
+
+gcloud dataproc jobs submit pyspark --cluster=delta-cluster --region=us-east4 -- gs://dataproc-init-01/02_feature_transformations.py -- --begin_date 2024-08-04 --end_date 2024-08-04  --output_bucket mlb_feature_store --output_destination batting_vs_starting_pitching --write_mode append
+
+gcloud dataproc jobs submit pyspark --cluster=delta-cluster --region=us-east4 -- gs://dataproc-init-01/03_scheduled_game_transformations.py -- --date 2024-08-05  --output_bucket mlb_feature_store --output_destination team_batting_vs_starting_pitching_scheduled --write_mode append     
+
+bq mk --dataset --location=us-east4 mlb-insights-hub:mlb_features   
+
+bq load --location="us-east4" --source_format=PARQUET mlb_features.team_batting_vs_starting_pitching_scheduled "gs://mlb_feature_store/team_batting_vs_starting_pitching_scheduled/*.parquet" 
+
+bq load --location="us-east4" --source_format=PARQUET mlb_features.team_batting_vs_starting_pitching "gs://mlb_feature_store/batting_vs_starting_pitching/*.parquet"
+
+gcloud dataproc jobs submit pyspark --cluster=delta-cluster --region=us-east4 -- gs://dataproc-init-01/04_prepare_model_training_inputs.py -- --input_bucket mlb_feature_store --historical_path batting_vs_starting_pitching --scheduled_path team_batting_vs_starting_pitching_scheduled --output_bucket mlb_feature_store --output_destination xgboost_model_input --write_mode overwrite     
+
+gcloud dataproc jobs submit pyspark --cluster=delta-cluster --region=us-east4 -- gs://dataproc-init-01/05_train_xgb_with_optuna.py -- --input_bucket mlb_feature_store --input_path xgboost_model_input/model_home_away --output_bucket mlb_xgb_output --output_destination xgboost_model_training_output --model_tag test_model_0805 --write_mode overwrite 
+
+
+bq mk --dataset --location=us-east4 mlb-insights-hub:mlb_model_output  
+
+bq load --location="us-east4" --source_format=PARQUET mlb_model_output.training_data_with_predictions "gs://mlb_xgb_output/xgboost_model_training_output/test_model_0805/training_data_with_predictions/*.parquet"
+bq load --location="us-east4" --source_format=PARQUET mlb_model_output.accuracy_55_test_result "gs://mlb_xgb_output/xgboost_model_training_output/test_model_0805/accuracy_55_test_result/*.parquet"

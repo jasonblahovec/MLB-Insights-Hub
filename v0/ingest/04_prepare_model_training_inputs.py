@@ -3,10 +3,8 @@ import pyspark
 
 from pyspark.sql.types import *
 import pyspark.sql.functions as f
-from pyspark.sql.window import Window
+
 import pandas as pd
-from pyspark.sql import DataFrame
-import datetime as dt
 
 def get_baseball_data_fields():
     """
@@ -223,13 +221,13 @@ def get_home_vs_away_models_v0(reporting_table):
         # ,'HomeWinningPercentage'
         # ,'home_to_away_wins'
         # ,'home_to_away_losses'
-        # ,'home_win_loss_ratio'
-        # ,'away_win_loss_ratio'
-        'GameNumber'
+        'home_win_loss_ratio'
+        ,'away_win_loss_ratio'
+        ,'GameNumber'
         # # ,'VenueName'
-        # ,'game_month'
-        # ,'home_days_rest'
-        # ,'away_days_rest'
+        ,'game_month'
+        ,'home_days_rest'
+        ,'away_days_rest'
         # ,'dayNight'
 
     ]
@@ -409,7 +407,9 @@ def get_combined_model_data(reporting_table):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Prepare MLB Xgboost inputs")
-    parser.add_argument("--date", type=str, help="date to process")
+    parser.add_argument("--input_bucket", type=str, help="a GCS Bucket")
+    parser.add_argument("--historical_path", type=str, help="path to input data - history")
+    parser.add_argument("--scheduled_path", type=str, help="path to input data - scheduled")
     parser.add_argument("--output_bucket", type=str, help="a GCS Bucket")
     parser.add_argument("--output_destination", type=str, help="a location within GCS bucket where output is stored")
     parser.add_argument("--write_mode", type=str, help="overwrite or append, as used in spark.write.*")
@@ -421,13 +421,20 @@ if __name__ == "__main__":
     spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "false")
 
 
-    df_team_batting_vs_starting_pitching = spark.read.format("parquet").load('/FileStore/mlb_test_data/batting_vs_starting_pitching_reduced')
-    df_scheduled = spark.read.format("parquet").load('/FileStore/mlb_test_data/scheduled_reduced')
+    df_team_batting_vs_starting_pitching = spark.read.format("parquet").load(f'gs://{args.input_bucket}/{args.historical_path}')
+    df_scheduled = spark.read.format("parquet").load(f'gs://{args.input_bucket}/{args.scheduled_path}')
 
     reporting_table = df_team_batting_vs_starting_pitching[get_baseball_data_fields()].na.drop()
-    reporting_table.groupBy('season').agg(f.count(f.lit(1))).display()
 
     away_data, home_data = get_home_vs_away_models_v0(reporting_table)
     combined_model_data = get_combined_model_data(reporting_table)
+
+    spark.createDataFrame(combined_model_data).write.format("parquet") \
+        .save(f"gs://{args.output_bucket}/{args.output_destination}/model_home_away", mode = args.write_mode)
+    spark.createDataFrame(home_data).write.format("parquet") \
+        .save(f"gs://{args.output_bucket}/{args.output_destination}/model_home", mode = args.write_mode)
+    spark.createDataFrame(away_data).write.format("parquet") \
+        .save(f"gs://{args.output_bucket}/{args.output_destination}/model_away", mode = args.write_mode)
+
 
     spark.stop()

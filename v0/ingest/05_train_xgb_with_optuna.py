@@ -17,7 +17,34 @@ from sklearn.metrics import log_loss
 from scipy.stats import norm
 import pandas as pd
 from xgboost import XGBClassifier
+import matplotlib.pyplot as plt
+import pickle
+from google.cloud import storage
 
+def upload_pickled_model(model, bucket_name, destination_path):
+    """
+    Pickles the model and uploads it to the specified Google Cloud Storage path.
+
+    :param model: The model to be pickled and uploaded.
+    :param bucket_name: The name of the GCS bucket.
+    :param destination_path: The destination path within the GCS bucket.
+    """
+    # Serialize the model to a bytes object
+    pickled_model = pickle.dumps(model)
+
+    # Initialize a storage client
+    storage_client = storage.Client()
+
+    # Get the bucket
+    bucket = storage_client.bucket(bucket_name)
+
+    # Create a new blob in the bucket
+    blob = bucket.blob(destination_path)
+
+    # Upload the serialized model
+    blob.upload_from_string(pickled_model)
+
+    print(f"Model uploaded to {bucket_name}/{destination_path}.")
 
 """
 This paragraph contains several metrics for use in Optuna studies as well as objective functions.
@@ -194,9 +221,7 @@ def display_accuracy_55_test(sdf):
     # Convert results to DataFrame for better visualization
     results_df = pd.DataFrame(results)
 
-    # Display the results
-    results_df.display()
-    spark.createDataFrame(results_df).groupBy('dataset').agg((f.sum('correct')/f.sum('games')).alias('pct')).display()
+    return spark.createDataFrame(results_df).groupBy('dataset').agg((f.sum('correct')/f.sum('games')).alias('pct'))
 
 
 def optuna_mlb_study(df_training, df_validation, df_test, dmtraining, dmvalidation, dmtrainval, dmtest):
@@ -259,62 +284,17 @@ def optuna_mlb_study_binary(df_training, df_validation, df_test, dmtraining, dmv
 
     return union_df, study, best_model
 
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Prepare MLB Xgboost inputs")
-    parser.add_argument("--date", type=str, help="date to process")
-    parser.add_argument("--output_bucket", type=str, help="a GCS Bucket")
-    parser.add_argument("--output_destination", type=str, help="a location within GCS bucket where output is stored")
-    parser.add_argument("--write_mode", type=str, help="overwrite or append, as used in spark.write.*")
-    args = parser.parse_args()
-
-    spark = pyspark.sql.SparkSession.builder \
-        .appName("Prepare MLB XGBoost Model Inputs") \
-        .getOrCreate()
-    spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "false")
-
-    df_training_away, df_validation_away, df_test_away, dmtrainingaway, dmvalidationaway, dmtrainvalaway, dmtestaway =  df_to_split_dmatrix( \
-        pdf = away_data, split_col = 'season' \
-            , validation_set_value = 2023, test_set_value = 2024)
-
-    df_training_home, df_validation_home, df_test_home, dmtraininghome, dmvalidationhome, dmtrainvalhome, dmtesthome =  df_to_split_dmatrix( \
-        pdf = home_data, split_col = 'season' \
-            , validation_set_value = 2023, test_set_value = 2024)
-
-    df_training_combined, df_validation_combined, df_test_combined, dmtrainingcombined, dmvalidationcombined, dmtrainvalcombined, dmtestcombined =  df_to_split_dmatrix( \
-        pdf = combined_model_data, split_col = 'season' \
-            , validation_set_value = 2023, test_set_value = 2024)
-
-    union_df_comb, study_comb, best_model_comb =  \
-        optuna_mlb_study_binary(df_training_combined, df_validation_combined, df_test_combined \
-            , dmtrainingcombined, dmvalidationcombined, dmtrainvalcombined, dmtestcombined)
-    
-    # home_result_df, home_study, home_best_model = optuna_mlb_study(df_training_home, df_validation_home, df_test_home, dmtraininghome, dmvalidationhome, dmtrainvalhome, dmtesthome)
-    # away_result_df, away_study, away_best_model = optuna_mlb_study(df_training_away, df_validation_away, df_test_away, dmtrainingaway, dmvalidationaway, dmtrainvalaway, dmtestaway)
-
-    df_result = spark.createDataFrame(union_df_comb) \
-        .withColumn("rounded",f.expr("round(model_prediction,1)")) \
-            .withColumn('pred_binary', f.expr("case when model_prediction >.5 then 1 else 0 end")) \
-                .withColumn('correct',f.expr("case when pred_binary = HomeTeamWin then 1 else 0 end")) \
-            .groupBy("season","game_month", "dataset").agg(f.avg('model_prediction'),f.count(f.lit(1)).alias('games'), f.sum('correct').alias('correct')) \
-                .withColumn('yrmo',f.expr("concat(cast(season as string),case when game_month<10 then '0' else '' end, cast(game_month as string))")).withColumn('pct',f.expr("correct/games"))
-
-    """
-    Run a one-sided test to determine if the model has a >55% success rate:
-    """
-    display_accuracy_55_test(df_result)
-
-    # Assuming best_model_comb is an XGBoost Booster object
+def run_shap(best_model, pdf, destination_bucket_name, destination_blob_name):
+    # Assuming best_model is an XGBoost Booster object
     # Convert the Booster to a compatible XGBClassifier
     model = XGBClassifier()
-    model._Booster = best_model_comb
+    model._Booster = best_model
 
     """
     Run a SHAP Explainer:
     """
     # Verify the objective to confirm binary classification settings
-    objective = best_model_comb.attributes().get("objective", "")
+    objective = best_model.attributes().get("objective", "")
     if "multi:softprob" in objective or "binary:logistic" in objective:
         print("Model is configured for binary classification.")
 
@@ -322,7 +302,7 @@ if __name__ == "__main__":
     explainer = shap.TreeExplainer(model)
 
     # Use the training features
-    X_train = df_training_combined.iloc[:, 2:-1]  # Adjust indexing based on your actual data
+    X_train = pdf.iloc[:, 2:-1]  # Adjust indexing based on your actual data
 
     # Calculate SHAP values
     shap_values = explainer.shap_values(X_train)
@@ -333,6 +313,68 @@ if __name__ == "__main__":
         shap_values = shap_values[1]  # Use SHAP values for the positive class
 
     # Plot summary of feature importance
-    shap.summary_plot(shap_values, X_train)
+    plt.figure()
+    shap.summary_plot(shap_values, X_train, show=False)
+    plt.savefig('shap_summary_plot.png')
+    plt.close()
 
+    # Upload the file to Google Cloud Storage
+    upload_to_gcs('shap_summary_plot.png', destination_bucket_name, destination_blob_name)
+
+def upload_to_gcs(source_file_name, bucket_name, destination_blob_name):
+    """Uploads a file to the bucket."""
+    # Initialize a storage client
+    storage_client = storage.Client()
+
+    # Get the bucket
+    bucket = storage_client.bucket(bucket_name)
+
+    # Create a new blob and upload the file's content
+    blob = bucket.blob(destination_blob_name)
+    blob.upload_from_filename(source_file_name)
+
+    print(f"File {source_file_name} uploaded to {bucket_name}/{destination_blob_name}.")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Prepare MLB Xgboost inputs")
+    parser.add_argument("--input_bucket", type=str, help="a GCS Bucket")
+    parser.add_argument("--input_path", type=str, help="04_prepare.. output path")
+    parser.add_argument("--output_bucket", type=str, help="a GCS Bucket")
+    parser.add_argument("--output_destination", type=str, help="a location within GCS bucket where output is stored")
+    parser.add_argument("--model_tag", type=str, help="folder in output_dest for all output")
+    parser.add_argument("--write_mode", type=str, help="overwrite or append, as used in spark.write.*")
+    args = parser.parse_args()
+
+    spark = pyspark.sql.SparkSession.builder \
+        .appName("Prepare MLB XGBoost Model Inputs") \
+        .getOrCreate()
+    spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "false")
+
+    input_df = spark.read.format("parquet").load(f'gs://{args.input_bucket}/{args.input_path}')
+
+    df_training, df_validation, df_test, dmtraining, dmvalidation, dmtrainval, dmtest =  df_to_split_dmatrix( \
+        pdf = input_df.toPandas(), split_col = 'season' \
+            , validation_set_value = 2023, test_set_value = 2024)
+
+    union_df, study, best_model =  \
+        optuna_mlb_study_binary(df_training, df_validation, df_test, dmtraining, dmvalidation, dmtrainval, dmtest)
+    
+    df_result = spark.createDataFrame(union_df) \
+        .withColumn("rounded",f.expr("round(model_prediction,1)")) \
+        .withColumn('pred_binary', f.expr("case when model_prediction >.5 then 1 else 0 end")) \
+        .withColumn('correct',f.expr("case when pred_binary = HomeTeamWin then 1 else 0 end"))
+    
+    df_result_summary = df_result \
+            .groupBy("season","game_month", "dataset").agg(f.avg('model_prediction'),f.count(f.lit(1)).alias('games'), f.sum('correct').alias('correct')) \
+                .withColumn('yrmo',f.expr("concat(cast(season as string),case when game_month<10 then '0' else '' end, cast(game_month as string))")).withColumn('pct',f.expr("correct/games"))
+
+    """
+    Run a one-sided test to determine if the model has a >55% success rate:
+    """
+    df_accuracy_55_result = display_accuracy_55_test(df_result_summary)
+    run_shap(best_model, df_training, args.output_bucket, f"{args.output_destination}/{args.model_tag}/shap_plot.png")
+    df_result.write.format("parquet").save(f"gs://{args.output_bucket}/{args.output_destination}/{args.model_tag}/training_data_with_predictions", mode = args.write_mode)
+    df_accuracy_55_result.write.format("parquet").save(f"gs://{args.output_bucket}/{args.output_destination}/{args.model_tag}/accuracy_55_test_result", mode = args.write_mode)
+    upload_pickled_model(best_model, args.output_bucket, f"{args.output_destination}/{args.model_tag}/best_model.pkl")
     spark.stop()
