@@ -72,7 +72,7 @@ if __name__ == "__main__":
     spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "false")
 
     input_df = spark.read.format("parquet").load(f'gs://{args.input_bucket}/{args.input_path}')
-    dm =  model_dataframe_to_dmatrix(pdf = input_df.toPandas())
+    dm =  model_dataframe_to_dmatrix(input_df.toPandas())
     model = fetch_pickled_model(bucket_name = args.input_bucket, source_path = args.model_path)
 
     preds = model.predict(dm)
