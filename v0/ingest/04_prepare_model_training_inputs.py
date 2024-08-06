@@ -334,10 +334,10 @@ def get_combined_model_data(reporting_table):
 
     features_combined = [
         # 'AwayWinningPercentage',
-        # 'HomeWinningPercentage',
-        # 'home_to_away_wins',
+        'HomeWinningPercentage',
+        'home_to_away_wins',
         # 'home_to_away_losses',
-        # 'home_win_loss_ratio',
+        'home_win_loss_ratio',
         # 'away_win_loss_ratio',
         'GameNumber',
         'game_month',
