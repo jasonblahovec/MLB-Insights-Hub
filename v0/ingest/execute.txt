@@ -14,7 +14,6 @@ gcloud dataproc jobs submit pyspark --cluster=delta-cluster --region=us-east4 --
 gcloud dataproc jobs submit pyspark --cluster=delta-cluster --region=us-east4 -- gs://dataproc-init-01/06_predict_with_trained_model.py -- --input_bucket mlb_feature_store --input_path xgboost_model_input/model_home_away_predict --model_bucket mlb_xgb_output --model_path xgboost_model_training_output/test_model_0808/best_model.pkl --output_bucket mlb_xgb_output --output_destination xgboost_model_predictions --model_tag test_model_0808 --write_mode overwrite 
 
 
-
 bq load --location="us-east4" --source_format=PARQUET mlb_features.team_batting_vs_starting_pitching_scheduled "gs://mlb_feature_store/team_batting_vs_starting_pitching_scheduled/*.parquet" 
 bq load --location="us-east4" --source_format=PARQUET mlb_features.team_batting_vs_starting_pitching "gs://mlb_feature_store/batting_vs_starting_pitching/*.parquet"
 bq load --location="us-east4" --source_format=CSV mlb_features.games_history "gs://mlb_api_extracts/mlb_api_output/games_history.csv"

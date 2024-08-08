@@ -184,12 +184,17 @@ if __name__ == "__main__":
     df_current_pitching_home = prefix_columns('home_sp_', df_current_pitching)
     df_current_pitching_away = prefix_columns('away_sp_', df_current_pitching)
 
+    print(df_todays_games.count(),df_current_batting_home.count(),df_current_batting_away.count(), \
+          df_current_pitching_home.count(), df_current_pitching_away.count())
+
     df_model_input_daily =  \
         df_todays_games \
         .join(df_current_batting_home, df_todays_games.HomeTeamName == df_current_batting_home.home_team_name, "left")\
         .join(df_current_batting_away, df_todays_games.AwayTeamName == df_current_batting_away.away_team_name, "left") \
         .join(df_current_pitching_home, df_todays_games.HomeProbPitcherFullName == df_current_pitching_home.home_sp_player_name, "left")\
         .join(df_current_pitching_away, df_todays_games.AwayProbPitcherFullName == df_current_pitching_away.away_sp_player_name, "left")
+
+    print(df_model_input_daily.count())
 
     df_model_input_daily[df_model_input_daily.columns[2:]] \
         .withColumn('batch', f.expr('current_timestamp()')) \
