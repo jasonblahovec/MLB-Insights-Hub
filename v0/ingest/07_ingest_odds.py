@@ -234,7 +234,8 @@ if __name__ == "__main__":
     MARKETS = 'h2h'#,spreads,totals'  # Can be 'h2h', 'spreads', 'totals', etc.
     ODDS_FORMAT = 'american'  # 'decimal' or 'american'
     DATE_FORMAT = 'iso'  # 'iso' or 'unix'
-    FILE_PATH = '/FileStore/mlb_odds_history_2024_v1'
+
+
     # mlb_season_dates = get_mlb_season_dates()
     dates = {"custom":{
         "first_game": args.first_game_date,
@@ -246,10 +247,11 @@ if __name__ == "__main__":
         .getOrCreate()
     spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "false")
 
-    all_game_dates = generate_game_dates(dates['custom'])
+    all_game_dates = generate_game_dates(dates)
+    print(all_game_dates)
     df_odds_history = get_odds_history_df( \
         API_KEY, SPORT, REGIONS, MARKETS, \
-            ODDS_FORMAT, all_game_dates[dates['custom']['first_game'].split('-')[0]])
+            ODDS_FORMAT, all_game_dates['custom'])
 
     bookmaker_keys = ['mybookieag', 'betmgm','draftkings','betrivers','fanduel','bet365']
     odds_p = df_odds_history.toPandas()

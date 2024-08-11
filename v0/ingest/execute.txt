@@ -19,3 +19,8 @@ bq load --location="us-east4" --source_format=PARQUET mlb_features.team_batting_
 bq load --location="us-east4" --source_format=PARQUET mlb_model_output.training_data_with_predictions "gs://mlb_xgb_output/xgboost_model_training_output/test_model_0811/training_data_with_predictions/*.parquet"
 bq load --location="us-east4" --source_format=PARQUET mlb_model_output.accuracy_55_test_result "gs://mlb_xgb_output/xgboost_model_training_output/test_model_0811/accuracy_55_test_result/*.parquet"
 bq load --location="us-east4" --source_format=PARQUET mlb_model_output.game_predictions "gs://mlb_xgb_output/xgboost_model_predictions/test_model_0811/game_predictions/*.parquet"
+
+
+gcloud dataproc jobs submit pyspark --cluster=delta-cluster --region=us-east4 -- gs://dataproc-init-01/07_ingest_odds.py -- --first_game_date 2024-08-01 --last_game_date 2024-08-03 --output_bucket odds_api_output --output_destination raw_api_output --write_mode append     
+bq mk --dataset --location=us-east4 mlb-insights-hub:odds 
+bq load --location="us-east4" --source_format=PARQUET mlb_model_output.odds_raw "gs://odds_api_output/raw_api_output/*.parquet"
