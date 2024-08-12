@@ -8,6 +8,44 @@ import numpy as np
 import pandas as pd
 from google.cloud import storage
 from datetime import datetime, timedelta
+from pyspark.sql.types import *
+
+# Dictionary mapping home teams to their time zone offsets
+team_timezones = {
+    # Eastern Time (ET)
+    'Baltimore Orioles': 'America/New_York',
+    'Boston Red Sox': 'America/New_York',
+    'New York Yankees': 'America/New_York',
+    'Tampa Bay Rays': 'America/New_York',
+    'Toronto Blue Jays': 'America/New_York',
+    'Atlanta Braves': 'America/New_York',
+    'Miami Marlins': 'America/New_York',
+    'New York Mets': 'America/New_York',
+    'Philadelphia Phillies': 'America/New_York',
+    'Washington Nationals': 'America/New_York',
+    'Cleveland Guardians': 'America/New_York',
+    'Detroit Tigers': 'America/New_York',
+    'Pittsburgh Pirates': 'America/New_York',
+    'Cincinnati Reds': 'America/New_York',
+    # Central Time (CT)
+    'Chicago White Sox': 'America/Chicago',
+    'Kansas City Royals': 'America/Chicago',
+    'Minnesota Twins': 'America/Chicago',
+    'Houston Astros': 'America/Chicago',
+    'Texas Rangers': 'America/Chicago',
+    'Milwaukee Brewers': 'America/Chicago',
+    'St. Louis Cardinals': 'America/Chicago',
+    # Mountain Time (MT)
+    'Arizona Diamondbacks': 'America/Phoenix',
+    'Colorado Rockies': 'America/Denver',
+    # Pacific Time (PT)
+    'Los Angeles Angels': 'America/Los_Angeles',
+    'Los Angeles Dodgers': 'America/Los_Angeles',
+    'Oakland Athletics': 'America/Los_Angeles',
+    'San Diego Padres': 'America/Los_Angeles',
+    'San Francisco Giants': 'America/Los_Angeles',
+    'Seattle Mariners': 'America/Los_Angeles'
+}
 
 def display_odds_data(odds_data):
     """Convert odds data to a pandas DataFrame and display it."""
@@ -254,18 +292,48 @@ if __name__ == "__main__":
             ODDS_FORMAT, all_game_dates['custom'])
 
     bookmaker_keys = ['mybookieag', 'betmgm','draftkings','betrivers','fanduel','bet365']
-    odds_p = df_odds_history.toPandas()
-    odds_p_p = pivot_betting_data_by_book(odds_p, bookmaker_keys)
-    away_p_p = odds_p_p[odds_p_p.outcome_name==odds_p_p.away_team]
-    home_p_p = odds_p_p[odds_p_p.outcome_name==odds_p_p.home_team]
+    # odds_p = df_odds_history.toPandas()
+    # odds_p_p = pivot_betting_data_by_book(odds_p, bookmaker_keys)
+    # away_p_p = odds_p_p[odds_p_p.outcome_name==odds_p_p.away_team]
+    # home_p_p = odds_p_p[odds_p_p.outcome_name==odds_p_p.home_team]
 
-    combined_odds_df = spark.createDataFrame(pd.merge(
-        away_p_p,
-        home_p_p,
-        on=['id', 'commence_time', 'away_team', 'home_team'],
-        suffixes=('_away', '_home')
-    ))
+    # combined_odds_df = spark.createDataFrame(pd.merge(
+    #     away_p_p,
+    #     home_p_p,
+    #     on=['id', 'commence_time', 'away_team', 'home_team'],
+    #     suffixes=('_away', '_home')
+    # ))
 
-    combined_odds_df.write.format("parquet").save(f"gs://{args.output_bucket}/{args.output_destination}/odds_history", mode = args.write_mode)
+    # #Store Raw Odds
+    # combined_odds_df.write.format("parquet").save(f"gs://{args.output_bucket}/{args.output_destination}/odds_history", mode = args.write_mode)
+
+    #Read Raw Odds and adjust time zones:
+    df_combined_read_in = spark.read.format("parquet") \
+        .load(f"gs://{args.output_bucket}/{args.output_destination}/odds_history" \
+              , mode = args.write_mode)
+
+    # Convert the dictionary to a Spark-compatible function
+    def get_timezone(team):
+        return team_timezones.get(team, 'UTC')
+
+    # Register the function as a UDF
+    get_timezone_udf = spark.udf.register("get_timezone", get_timezone, StringType())
+
+    # Add a new column with the local time
+    local_time_df = df_combined_read_in.withColumn(
+        "local_commence_time",
+        f.from_utc_timestamp(f.col("commence_time"), get_timezone_udf(f.col("home_team")))
+    ).withColumn(
+        "eastern_commence_time",
+        f.from_utc_timestamp(f.col("commence_time"), "America/New_York")
+    )
+
+    df_commence_times = local_time_df.select("id", "commence_time", "home_team", "local_commence_time","eastern_commence_time") \
+        .withColumn('gameNumber',f.expr("rank() over (partition by home_team, to_date(eastern_commence_time) order by eastern_commence_time)")) \
+            .withColumn('officialDate', f.to_date('eastern_commence_time'))
+
+    #Store Odds with local and eastern times, ready to join with MLB API data:
+    df_combined_read_in.join(df_commence_times,["id", "commence_time", "home_team"]) \
+        .write.format("parquet").save(f"gs://{args.output_bucket}/{args.output_destination}/odds_history_formatted", mode = 'overwrite')#args.write_mode)
 
     spark.stop()
