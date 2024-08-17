@@ -4,7 +4,7 @@ from pyspark.sql.types import *
 
 if __name__ == "__main__":
     spark = pyspark.sql.SparkSession.builder \
-        .appName("Ingest MLB Game info for a provided date range") \
+        .appName("MLB01 - Snapshot Input CSV Files") \
         .getOrCreate()
     spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "false")
 

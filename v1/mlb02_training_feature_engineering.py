@@ -15,7 +15,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     spark = pyspark.sql.SparkSession.builder \
-        .appName("Ingest MLB Game info for a provided date range") \
+        .appName("Prepare features from MLB Game info for games in a provided date range") \
         .getOrCreate()
     spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "false")
 

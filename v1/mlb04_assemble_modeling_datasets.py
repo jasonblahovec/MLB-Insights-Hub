@@ -1,9 +1,7 @@
 import argparse
 import pyspark
-
 from pyspark.sql.types import *
 import pyspark.sql.functions as f
-
 import pandas as pd
 
 def get_baseball_data_fields():
@@ -188,22 +186,22 @@ def get_baseball_data_fields():
 
 def get_home_vs_away_models_v0(reporting_table):
     """
-    Accepts the reporting table and outputs a table of ML features for XGBoost models 
-    to predict AwayRuns and HomeRuns separately.
-
+    Creates two datasets: one for predicting AwayRuns and one for predicting HomeRuns 
+    using XGBoost models.
+    
     Args:
-        reporting_table (DataFrame): Input Spark DataFrame with raw data.
+        reporting_table (DataFrame): Input Spark DataFrame containing the raw game data.
 
     Returns:
-        (DataFrame, DataFrame): Two DataFrames for AwayRuns and HomeRuns models.
+        (DataFrame, DataFrame): Two DataFrames with features and target variables 
+        for AwayRuns and HomeRuns models.
     """
     
     # Ensure all necessary columns are selected
     columns = get_baseball_data_fields()
     df = reporting_table.select(columns).na.drop()
     
-    # Generate additional features if needed (e.g., ratios, interactions, etc.)
-    # Example: Home team win/loss ratio, away team win/loss ratio
+    # Generate additional features
     df = df.withColumn("home_win_loss_ratio", f.col("HomeWins") / (f.col("HomeLosses") + 1))
     df = df.withColumn("away_win_loss_ratio", f.col("AwayWins") / (f.col("AwayLosses") + 1))
     df = df.withColumn("home_to_away_wins", f.col("HomeWins") / (f.col("AwayWins") + 1))
@@ -214,77 +212,36 @@ def get_home_vs_away_models_v0(reporting_table):
     df = df.withColumn("home_days_rest", f.datediff(df["OfficialDate"], df["home_officialdate"]))
     df = df.withColumn("away_days_rest", f.datediff(df["OfficialDate"], df["away_officialdate"]))
     
-    id_link = ["GamePK","season"]
+    id_link = ["GamePK", "season"]
 
     features_both = [
-        # 'AwayWinningPercentage'
-        # ,'HomeWinningPercentage'
-        # ,'home_to_away_wins'
-        # ,'home_to_away_losses'
-        'home_win_loss_ratio'
-        ,'away_win_loss_ratio'
-        ,'GameNumber'
-        # # ,'VenueName'
-        ,'game_month'
-        ,'home_days_rest'
-        ,'away_days_rest'
-        # ,'dayNight'
-
+        'home_win_loss_ratio', 'away_win_loss_ratio', 'GameNumber', 
+        'game_month', 'home_days_rest', 'away_days_rest',
     ]
 
-    # Select features and target variable for AwayRuns model
-    features_away = df.select(id_link+features_both+[
-        "away_runs_last_1"
-        , "away_batting_avg_last_1"
-        , "away_strikeouts_last_1"
-        , "away_walks_last_1"
-        , "away_runs_last_3"
-        , "away_batting_avg_last_3"
-        , "away_strikeouts_last_3"
-        , "away_walks_last_3"
-        , "away_runs_last_7"
-        , "away_batting_avg_last_7"
-        , "away_strikeouts_last_7"
-        , "away_walks_last_7"
-        , "away_runs_last_15"
-        , "away_batting_avg_last_15"
-        , "away_strikeouts_last_15"
-        , "away_walks_last_15"
-        , "home_sp_strikeouts_last_1"
-        , "home_sp_strikeouts_last_3"
-        , "home_sp_strikeouts_last_7"
-        , "home_sp_runs_last_1"
-        , "home_sp_runs_last_3"
-        , "home_sp_runs_last_7"
-        , "home_sp_days_rest"
+    # Select features and target variable for the AwayRuns model
+    features_away = df.select(id_link + features_both + [
+        "away_runs_last_1", "away_batting_avg_last_1", "away_strikeouts_last_1", 
+        "away_walks_last_1", "away_runs_last_3", "away_batting_avg_last_3", 
+        "away_strikeouts_last_3", "away_walks_last_3", "away_runs_last_7", 
+        "away_batting_avg_last_7", "away_strikeouts_last_7", "away_walks_last_7", 
+        "away_runs_last_15", "away_batting_avg_last_15", "away_strikeouts_last_15", 
+        "away_walks_last_15", "home_sp_strikeouts_last_1", "home_sp_strikeouts_last_3", 
+        "home_sp_strikeouts_last_7", "home_sp_runs_last_1", "home_sp_runs_last_3", 
+        "home_sp_runs_last_7", "home_sp_days_rest"
     ])
     target_away = df.select("AwayRuns")
     
-    # Select features and target variable for HomeRuns model
-    features_home = df.select(id_link+features_both+[
-        "home_runs_last_1"
-        , "home_batting_avg_last_1"
-        , "home_strikeouts_last_1"
-        , "home_walks_last_1"
-        , "home_runs_last_3"
-        , "home_batting_avg_last_3"
-        , "home_strikeouts_last_3"
-        , "home_walks_last_3"
-        , "home_runs_last_7"
-        , "home_batting_avg_last_7"
-        , "home_strikeouts_last_7"
-        , "home_walks_last_7"
-        , "home_runs_last_15"
-        , "home_batting_avg_last_15"
-        , "home_strikeouts_last_15"
-        , "home_walks_last_15"
-        , "away_sp_strikeouts_last_1"
-        , "away_sp_strikeouts_last_3"
-        , "away_sp_strikeouts_last_7"
-        , "away_sp_runs_last_1"
-        , "away_sp_runs_last_3"
-        , "away_sp_runs_last_7"
-        , "away_sp_days_rest"
+    # Select features and target variable for the HomeRuns model
+    features_home = df.select(id_link + features_both + [
+        "home_runs_last_1", "home_batting_avg_last_1", "home_strikeouts_last_1", 
+        "home_walks_last_1", "home_runs_last_3", "home_batting_avg_last_3", 
+        "home_strikeouts_last_3", "home_walks_last_3", "home_runs_last_7", 
+        "home_batting_avg_last_7", "home_strikeouts_last_7", "home_walks_last_7", 
+        "home_runs_last_15", "home_batting_avg_last_15", "home_strikeouts_last_15", 
+        "home_walks_last_15", "away_sp_strikeouts_last_1", "away_sp_strikeouts_last_3", 
+        "away_sp_strikeouts_last_7", "away_sp_runs_last_1", "away_sp_runs_last_3", 
+        "away_sp_runs_last_7", "away_sp_days_rest"
     ])
     target_home = df.select("HomeRuns")
     
@@ -302,11 +259,10 @@ def get_home_vs_away_models_v0(reporting_table):
 
 def get_combined_model_data(reporting_table):
     """
-    Accepts the reporting table and outputs a DataFrame of ML features for an XGBoost model
-    to predict whether the home team wins.
-
+    Creates a dataset for predicting whether the home team wins using an XGBoost model.
+    
     Args:
-        reporting_table (DataFrame): Input Spark DataFrame with raw data.
+        reporting_table (DataFrame): Input Spark DataFrame containing the raw game data.
 
     Returns:
         DataFrame: DataFrame containing features and the target variable for the combined model.
@@ -316,7 +272,7 @@ def get_combined_model_data(reporting_table):
     columns = get_baseball_data_fields()
     df = reporting_table.select(columns).na.drop()
     
-    # Generate additional features (e.g., ratios, interactions, etc.)
+    # Generate additional features
     df = df.withColumn("home_win_loss_ratio", f.col("HomeWins") / (f.col("HomeLosses") + 1))
     df = df.withColumn("away_win_loss_ratio", f.col("AwayWins") / (f.col("AwayLosses") + 1))
     df = df.withColumn("home_to_away_wins", f.col("HomeWins") / (f.col("AwayWins") + 1))
@@ -333,61 +289,23 @@ def get_combined_model_data(reporting_table):
     id_link = ["GamePK", "season"]
 
     features_combined = [
-        # 'AwayWinningPercentage',
-        'HomeWinningPercentage',
-        'home_to_away_wins',
-        # 'home_to_away_losses',
-        'home_win_loss_ratio',
-        # 'away_win_loss_ratio',
-        'GameNumber',
-        'game_month',
-        'home_days_rest',
-        'away_days_rest',
-        "home_runs_last_1",
-        "home_batting_avg_last_1",
-        "home_strikeouts_last_1",
-        "home_walks_last_1",
-        "home_runs_last_3",
-        "home_batting_avg_last_3",
-        "home_strikeouts_last_3",
-        "home_walks_last_3",
-        "home_runs_last_7",
-        "home_batting_avg_last_7",
-        "home_strikeouts_last_7",
-        "home_walks_last_7",
-        "home_runs_last_15",
-        "home_batting_avg_last_15",
-        "home_strikeouts_last_15",
-        "home_walks_last_15",
-        "away_runs_last_1",
-        "away_batting_avg_last_1",
-        "away_strikeouts_last_1",
-        "away_walks_last_1",
-        "away_runs_last_3",
-        "away_batting_avg_last_3",
-        "away_strikeouts_last_3",
-        "away_walks_last_3",
-        "away_runs_last_7",
-        "away_batting_avg_last_7",
-        "away_strikeouts_last_7",
-        "away_walks_last_7",
-        "away_runs_last_15",
-        "away_batting_avg_last_15",
-        "away_strikeouts_last_15",
-        "away_walks_last_15",
-        "home_sp_strikeouts_last_1",
-        "home_sp_strikeouts_last_3",
-        "home_sp_strikeouts_last_7",
-        "home_sp_runs_last_1",
-        "home_sp_runs_last_3",
-        "home_sp_runs_last_7",
-        "home_sp_days_rest",
-        "away_sp_strikeouts_last_1",
-        "away_sp_strikeouts_last_3",
-        "away_sp_strikeouts_last_7",
-        "away_sp_runs_last_1",
-        "away_sp_runs_last_3",
-        "away_sp_runs_last_7",
+        'HomeWinningPercentage', 'home_to_away_wins', 'home_win_loss_ratio', 
+        'GameNumber', 'game_month', 'home_days_rest', 'away_days_rest', 
+        "home_runs_last_1", "home_batting_avg_last_1", "home_strikeouts_last_1", 
+        "home_walks_last_1", "home_runs_last_3", "home_batting_avg_last_3", 
+        "home_strikeouts_last_3", "home_walks_last_3", "home_runs_last_7", 
+        "home_batting_avg_last_7", "home_strikeouts_last_7", "home_walks_last_7", 
+        "home_runs_last_15", "home_batting_avg_last_15", "home_strikeouts_last_15", 
+        "home_walks_last_15", "away_runs_last_1", "away_batting_avg_last_1", 
+        "away_strikeouts_last_1", "away_walks_last_1", "away_runs_last_3", 
+        "away_batting_avg_last_3", "away_strikeouts_last_3", "away_walks_last_3", 
+        "away_runs_last_7", "away_batting_avg_last_7", "away_strikeouts_last_7", 
+        "away_walks_last_7", "away_runs_last_15", "away_batting_avg_last_15", 
+        "away_strikeouts_last_15", "away_walks_last_15", "home_sp_strikeouts_last_1", 
+        "home_sp_strikeouts_last_3", "home_sp_strikeouts_last_7", "home_sp_runs_last_1", 
+        "home_sp_runs_last_3", "home_sp_runs_last_7", "home_sp_days_rest", 
+        "away_sp_strikeouts_last_1", "away_sp_strikeouts_last_3", "away_sp_strikeouts_last_7", 
+        "away_sp_runs_last_1", "away_sp_runs_last_3", "away_sp_runs_last_7", 
         "away_sp_days_rest",
     ]
     
@@ -406,13 +324,13 @@ def get_combined_model_data(reporting_table):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Prepare MLB Xgboost inputs")
-    parser.add_argument("--input_bucket", type=str, help="a GCS Bucket")
-    parser.add_argument("--historical_path", type=str, help="path to input data - history")
-    parser.add_argument("--scheduled_path", type=str, help="path to input data - scheduled")
-    parser.add_argument("--output_bucket", type=str, help="a GCS Bucket")
-    parser.add_argument("--output_destination", type=str, help="a location within GCS bucket where output is stored")
-    parser.add_argument("--write_mode", type=str, help="overwrite or append, as used in spark.write.*")
+    parser = argparse.ArgumentParser(description="Prepare MLB XGBoost inputs")
+    parser.add_argument("--input_bucket", type=str, help="GCS Bucket for input data")
+    parser.add_argument("--historical_path", type=str, help="Path to historical data")
+    parser.add_argument("--scheduled_path", type=str, help="Path to scheduled data")
+    parser.add_argument("--output_bucket", type=str, help="GCS Bucket for output data")
+    parser.add_argument("--output_destination", type=str, help="Destination path within GCS Bucket")
+    parser.add_argument("--write_mode", type=str, help="Write mode for saving data (overwrite or append)")
     args = parser.parse_args()
 
     spark = pyspark.sql.SparkSession.builder \
@@ -420,19 +338,21 @@ if __name__ == "__main__":
         .getOrCreate()
     spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "false")
 
-
+    # Load historical and scheduled data
     df_team_batting_vs_starting_pitching = spark.read.format("parquet").load(f'gs://{args.input_bucket}/{args.historical_path}')
     df_scheduled = spark.read.format("parquet").load(f'gs://{args.input_bucket}/{args.scheduled_path}')
 
+    # Filter the reporting table for relevant fields
     reporting_table = df_team_batting_vs_starting_pitching[get_baseball_data_fields()].na.drop()
-
-    # away_data, home_data = get_home_vs_away_models_v0(reporting_table)
+    
+    # Create datasets for model training
     combined_model_data = get_combined_model_data(reporting_table)
     combined_model_data_scheduled = get_combined_model_data(df_scheduled)
 
+    # Save the processed data to GCS
     spark.createDataFrame(combined_model_data).write.format("parquet") \
-        .save(f"gs://{args.output_bucket}/{args.output_destination}/model_home_away_train", mode = args.write_mode)
+        .save(f"gs://{args.output_bucket}/{args.output_destination}/model_home_away_train", mode=args.write_mode)
     spark.createDataFrame(combined_model_data_scheduled).write.format("parquet") \
-        .save(f"gs://{args.output_bucket}/{args.output_destination}/model_home_away_predict", mode = args.write_mode)
+        .save(f"gs://{args.output_bucket}/{args.output_destination}/model_home_away_predict", mode=args.write_mode)
 
     spark.stop()
