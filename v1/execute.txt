@@ -7,20 +7,24 @@ bq mk --dataset --location=us-east4 mlb-insights-hub:mlb_model_output
 bq mk --dataset --location=us-east4 mlb-insights-hub:mlb_api_input 
 
 gcloud dataproc jobs submit pyspark --cluster=delta-cluster --region=us-east4 -- gs://dataproc-init-01/mlb01_snapshot_input.py
-gcloud dataproc jobs submit pyspark --cluster=delta-cluster --region=us-east4 -- gs://dataproc-init-01/mlb02_training_feature_engineering.py -- --begin_date 2024-08-19 --end_date 2024-08-19  --output_bucket mlb_feature_store --output_destination batting_vs_starting_pitching --write_mode append
-gcloud dataproc jobs submit pyspark --cluster=delta-cluster --region=us-east4 -- gs://dataproc-init-01/mlb03_prediction_feature_engineering.py -- --date 2024-08-20  --output_bucket mlb_feature_store --output_destination team_batting_vs_starting_pitching_scheduled --write_mode append       
+gcloud dataproc jobs submit pyspark --cluster=delta-cluster --region=us-east4 -- gs://dataproc-init-01/mlb02_training_feature_engineering.py -- --begin_date 2024-08-24 --end_date 2024-08-25  --output_bucket mlb_feature_store --output_destination batting_vs_starting_pitching --write_mode append
+gcloud dataproc jobs submit pyspark --cluster=delta-cluster --region=us-east4 -- gs://dataproc-init-01/mlb03_prediction_feature_engineering.py -- --date 2024-08-26  --output_bucket mlb_feature_store --output_destination team_batting_vs_starting_pitching_scheduled --write_mode append       
 gcloud dataproc jobs submit pyspark --cluster=delta-cluster --region=us-east4 -- gs://dataproc-init-01/mlb04_assemble_modeling_datasets.py -- --input_bucket mlb_feature_store --historical_path batting_vs_starting_pitching --scheduled_path team_batting_vs_starting_pitching_scheduled --output_bucket mlb_feature_store --output_destination xgboost_model_input --write_mode overwrite     
 
-gcloud dataproc jobs submit pyspark --cluster=delta-cluster --region=us-east4 -- gs://dataproc-init-01/mlb05_train_model.py -- --input_bucket mlb_feature_store --input_path xgboost_model_input/model_home_away_train --output_bucket mlb_xgb_output --output_destination xgboost_model_training_output --model_tag test_model_0820 --write_mode overwrite 
-gcloud dataproc jobs submit pyspark --cluster=delta-cluster --region=us-east4 -- gs://dataproc-init-01/mlb06_predict_with_trained_model.py -- --input_bucket mlb_feature_store --input_path xgboost_model_input/model_home_away_predict --model_bucket mlb_xgb_output --model_path xgboost_model_training_output/test_model_0820/best_model.pkl --output_bucket mlb_xgb_output --output_destination xgboost_model_predictions --model_tag test_model_0820 --write_mode overwrite 
+gcloud dataproc jobs submit pyspark --cluster=delta-cluster --region=us-east4 -- gs://dataproc-init-01/mlb05_train_model.py -- --input_bucket mlb_feature_store --input_path xgboost_model_input/model_home_away_train --output_bucket mlb_xgb_output --output_destination xgboost_model_training_output --model_tag test_model_0826 --write_mode overwrite 
+gcloud dataproc jobs submit pyspark --cluster=delta-cluster --region=us-east4 -- gs://dataproc-init-01/mlb06_predict_with_trained_model.py -- --input_bucket mlb_feature_store --input_path xgboost_model_input/model_home_away_predict --model_bucket mlb_xgb_output --model_path xgboost_model_training_output/test_model_0826/best_model.pkl --output_bucket mlb_xgb_output --output_destination xgboost_model_predictions --model_tag test_model_0826 --write_mode overwrite 
 
 
 bq load --location="us-east4" --source_format=PARQUET mlb_api_input.games_history "gs://mlb_api_extracts/mlb_api_output_parquet/games_history/*.parquet"
+bq load --location="us-east4" --source_format=PARQUET mlb_api_input.individual_pitching "gs://mlb_api_extracts/mlb_api_output_parquet/individual_pitching/*.parquet"
+bq load --location="us-east4" --source_format=PARQUET mlb_api_input.team_batting "gs://mlb_api_extracts/mlb_api_output_parquet/team_batting/*.parquet"
+bq load --location="us-east4" --source_format=PARQUET mlb_api_input.team_pitching "gs://mlb_api_extracts/mlb_api_output_parquet/team_pitching/*.parquet"
+bq load --location="us-east4" --source_format=PARQUET mlb_api_input.individual_batting "gs://mlb_api_extracts/mlb_api_output_parquet/individual_batting/*.parquet"
 bq load --location="us-east4" --source_format=PARQUET mlb_features.team_batting_vs_starting_pitching_scheduled "gs://mlb_feature_store/team_batting_vs_starting_pitching_scheduled/*.parquet" 
 bq load --location="us-east4" --source_format=PARQUET mlb_features.team_batting_vs_starting_pitching "gs://mlb_feature_store/batting_vs_starting_pitching/*.parquet"
-bq load --location="us-east4" --source_format=PARQUET mlb_model_output.training_data_with_predictions "gs://mlb_xgb_output/xgboost_model_training_output/test_model_0820/training_data_with_predictions/*.parquet"
-bq load --location="us-east4" --source_format=PARQUET mlb_model_output.accuracy_55_test_result "gs://mlb_xgb_output/xgboost_model_training_output/test_model_0820/accuracy_55_test_result/*.parquet"
-bq load --location="us-east4" --source_format=PARQUET mlb_model_output.game_predictions "gs://mlb_xgb_output/xgboost_model_predictions/test_model_0820/game_predictions/*.parquet"
+bq load --location="us-east4" --source_format=PARQUET mlb_model_output.training_data_with_predictions "gs://mlb_xgb_output/xgboost_model_training_output/test_model_0826/training_data_with_predictions/*.parquet"
+bq load --location="us-east4" --source_format=PARQUET mlb_model_output.accuracy_55_test_result "gs://mlb_xgb_output/xgboost_model_training_output/test_model_0826/accuracy_55_test_result/*.parquet"
+bq load --location="us-east4" --source_format=PARQUET mlb_model_output.game_predictions "gs://mlb_xgb_output/xgboost_model_predictions/test_model_0826/game_predictions/*.parquet"
 
 
 gcloud dataproc jobs submit pyspark --cluster=delta-cluster --region=us-east4 -- gs://dataproc-init-01/07_ingest_odds.py -- --first_game_date 2024-08-16 --last_game_date 2024-08-18 --output_bucket odds_api_output --output_destination raw_api_output --write_mode append
